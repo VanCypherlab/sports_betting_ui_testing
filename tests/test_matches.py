@@ -445,15 +445,15 @@ class TestRowLevelControls:
         final_text = matches.pic_role_button(0, "Supervisor").inner_text().strip()
         assert final_text == original_text, "Supervisor assignment did not revert to the original state"
 
-    def test_clicking_current_supervisor_assignee_again_unassigns(self, authenticated_page):
-        """Re-selecting the already-assigned Supervisor should unassign them (toggle-to-clear).
+    def test_clicking_current_supervisor_assignee_again_is_a_noop(self, authenticated_page):
+        """Re-selecting the already-assigned Supervisor does not unassign them.
 
-        Trader already supports this (see
-        test_clicking_current_trader_assignee_again_unassigns); Supervisor
-        shares the same popover component but is currently a no-op instead
-        -- verified live (no PATCH fires, popover just closes, assignee
-        unchanged). This asserts the expected/correct behavior directly, so
-        it is expected to fail until that's fixed -- that's fine.
+        Confirmed with the team (2026-07-14) that this is intentional, not a
+        bug: Supervisor and Trader are not meant to behave the same way
+        here -- Trader supports toggle-to-unassign (see
+        test_clicking_current_trader_assignee_again_unassigns), Supervisor
+        does not. Verified live: no PATCH fires, the popover just closes,
+        and the assignee is unchanged.
         """
         matches = MatchesPage(authenticated_page)
         matches.goto()
@@ -471,6 +471,7 @@ class TestRowLevelControls:
             matches.search(match_id)
 
         locate()
+        original_text = matches.pic_role_button(0, "Supervisor").inner_text().strip()
 
         popover = matches.open_pic_popover(0, "Supervisor")
         current_item = popover.locator('[data-slot="pic-assign-dropdown-item"][data-current="true"]')
@@ -484,23 +485,22 @@ class TestRowLevelControls:
         locate()
         final_text = matches.pic_role_button(0, "Supervisor").inner_text().strip()
 
-        # Revert regardless of outcome: if this bug has since been fixed,
-        # the click above actually unassigned the Supervisor and needs
-        # restoring; if not, this is a no-op.
+        # Revert defensively in case this behavior ever changes: if the
+        # click above did unassign the Supervisor, restore the original.
         if final_text == "Supervisor":
             popover = matches.open_pic_popover(0, "Supervisor")
             original_item = popover.locator(f'[data-slot="pic-assign-dropdown-item"][data-value="{original_uuid}"]')
             matches.assign_pic(popover, original_item)
 
-        assert final_text == "Supervisor", "clicking the already-assigned Supervisor again did not unassign them"
+        assert final_text == original_text, "clicking the already-assigned Supervisor again changed the assignment"
 
     def test_clicking_current_trader_assignee_again_unassigns(self, authenticated_page):
         """Re-selecting the already-assigned Trader unassigns them (toggle-to-clear).
 
         Verified live: a PATCH fires and the row reverts to unassigned.
-        This is the correct/expected behavior of the two roles -- Supervisor
-        shares the same popover component but is missing it (see
-        test_clicking_current_supervisor_assignee_again_unassigns).
+        Supervisor shares the same popover component but does not support
+        this -- confirmed intentional, not a bug (see
+        test_clicking_current_supervisor_assignee_again_is_a_noop).
         """
         matches = MatchesPage(authenticated_page)
         matches.goto()
