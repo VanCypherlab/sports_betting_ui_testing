@@ -1,20 +1,7 @@
-import os
-
 import pytest
 from playwright.sync_api import expect
 
 from pages.miniapp.stakeholder_entry_page import StakeholderEntryPage
-
-# frontend-miniapp is deployed on its own origin, separate from the
-# backoffice-ui base URL wired through pytest.ini's --base-url addopt, so it
-# gets its own env var and its own browser context (see miniapp_page below)
-# rather than sharing the global base_url fixture.
-MINIAPP_BASE_URL = os.environ.get("MINIAPP_BASE_URL")
-
-requires_miniapp_base_url = pytest.mark.skipif(
-    not MINIAPP_BASE_URL,
-    reason="MINIAPP_BASE_URL not set",
-)
 
 
 def _set_english_locale(context):
@@ -24,9 +11,30 @@ def _set_english_locale(context):
     context.add_init_script("window.localStorage.setItem('app-locale', 'en')")
 
 
+@pytest.fixture(scope="session")
+def requires_miniapp_base_url(pytestconfig):
+    """Skip the test if pytest.ini's `miniapp_base_url` isn't set.
+
+    A fixture, not a module-level skipif marker -- fixtures resolve at test
+    setup time, well after pytest_configure/ini parsing complete, so this
+    can safely read the value via pytest's own `config.getini()` (the ini
+    key itself is registered in tests/conftest.py's pytest_addoption). A
+    module-level marker couldn't do this: nested conftest.py modules like
+    this one are imported during pytest's early addoption-discovery pass,
+    before pytest_configure ever runs -- verified live.
+
+    Session-scoped so authenticated_miniapp_page (also session-scoped) can
+    depend on it -- a session fixture can't depend on a function-scoped one.
+    miniapp_page and authenticated_miniapp_page below both depend on this,
+    so any test using either already gets the skip for free.
+    """
+    if not pytestconfig.getini("miniapp_base_url"):
+        pytest.skip("miniapp_base_url not set in pytest.ini")
+
+
 @pytest.fixture
-def miniapp_page(browser):
-    context = browser.new_context(base_url=MINIAPP_BASE_URL)
+def miniapp_page(browser, pytestconfig, requires_miniapp_base_url):
+    context = browser.new_context(base_url=pytestconfig.getini("miniapp_base_url"))
     _set_english_locale(context)
     page = context.new_page()
     yield page
@@ -34,14 +42,14 @@ def miniapp_page(browser):
 
 
 @pytest.fixture(scope="session")
-def authenticated_miniapp_page(browser):
+def authenticated_miniapp_page(browser, pytestconfig, requires_miniapp_base_url):
     # Session-scoped: entering through /stakeholder-entry triggers a branded
     # intro animation + session bootstrap (WS connect, profile/wallet/bets
     # calls) that takes ~9s before real content renders, plus a one-time
     # "Welcome" popup. Paying that cost once and navigating via the bottom
     # nav for every test (rather than a fresh login per test) keeps the
     # suite fast, mirroring the backoffice-ui regression suite's approach.
-    context = browser.new_context(base_url=MINIAPP_BASE_URL)
+    context = browser.new_context(base_url=pytestconfig.getini("miniapp_base_url"))
     _set_english_locale(context)
     page = context.new_page()
 

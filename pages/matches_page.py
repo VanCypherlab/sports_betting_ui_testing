@@ -9,7 +9,7 @@ class MatchesPage(BackofficePage):
     """Page Object for the matches list (backoffice-ui: src/resources/matches).
 
     Unlike the Trader Dashboard, filter controls here do NOT refetch on
-    change -- verified live against admin.prod-test.cypherlab.tech by
+    change -- verified live against admin.uat.cypherlab.tech by
     watching network requests: selecting a Lifecycle/Sport/League/PIC/
     Reconciliation option, or toggling the date window, fires nothing by
     itself. The list only re-queries once the "Search" button (or Enter in
@@ -22,7 +22,7 @@ class MatchesPage(BackofficePage):
     HEADING_TEXT = "Matches"
 
     # aria-label reflects the switch's *current* state rather than a fixed
-    # name -- verified live against admin.prod-test.cypherlab.tech.
+    # name -- verified live against admin.uat.cypherlab.tech.
     STATUS_SWITCH_NAME = re.compile(r"^(Open|Closed)$")
     SHOW_SWITCH_NAME = re.compile(r"^(Show|Hide)$")
 
@@ -55,6 +55,19 @@ class MatchesPage(BackofficePage):
     def filter_by_league(self, option_text: str):
         self.league_filter.click()
         self.page.get_by_role("option", name=option_text, exact=True).click()
+
+    def league_options(self) -> list[str]:
+        """Every League filter option except "All leagues" itself, read live.
+
+        Not hardcoded -- verified live the available leagues (and whether
+        an "Unknown league" bucket for blank-League matches exists) drift
+        as match data rotates, so a fixed list goes stale.
+        """
+        self.league_filter.click()
+        options = self.page.get_by_role("option")
+        texts = [options.nth(i).inner_text().strip() for i in range(options.count())]
+        self.page.keyboard.press("Escape")
+        return [t for t in texts if t != "All leagues"]
 
     def filter_by_pic(self, option_text: str):
         self.pic_filter.click()

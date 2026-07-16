@@ -8,7 +8,7 @@ class MarketsPage(BackofficePage):
 
     This page is search-driven: it shows nothing (and exposes no filter
     controls) until a valid Match ID is searched -- verified live against
-    admin.prod-test.cypherlab.tech. Once a match loads, its odds grid is a
+    admin.uat.cypherlab.tech. Once a match loads, its odds grid is a
     wide table (27 columns per row): TYPE, ITEM, then a HOME / AWAY / DRAW
     block each with VALUE/WAO/TURNOVER/WAGERS/PLAYERS/ALERT (6 cols), then
     a SUMMARY block with LE%/WAGERS/PLAYERS/TOTAL TURNOVER, then

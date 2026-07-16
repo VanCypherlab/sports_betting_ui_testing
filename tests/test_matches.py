@@ -41,9 +41,9 @@ class TestFilterCalculationConsistency:
     def test_lifecycle_partitions_all(self, authenticated_page):
         """Pre-match + In-play + Finished should add up to "All lifecycles".
 
-        As of 2026-07-13 this fails on prod-test: e.g. Pre-match=5,
-        In-play=0, Finished=42 (sum 47) vs All lifecycles=45 -- the parts
-        don't reconcile with the total.
+        Originally filed as QA-402: on 2026-07-13 this failed on uat,
+        e.g. Pre-match=5, In-play=0, Finished=42 (sum 47) vs All
+        lifecycles=45 -- the parts didn't reconcile with the total.
         """
         matches = MatchesPage(authenticated_page)
         matches.goto()
@@ -71,10 +71,11 @@ class TestFilterCalculationConsistency:
     def test_reconciliation_partitions_all(self, authenticated_page):
         """Unsettled + Settled should add up to "All" under Reconciliation.
 
-        As of 2026-07-13 this fails on prod-test: e.g. Unsettled=14,
-        Settled=28 (sum 42) vs All=45 -- either a third reconciliation
-        state exists that isn't exposed as a filter option, or the "All"
-        count is inflated relative to the two named buckets.
+        Originally filed as QA-403: on 2026-07-13 this failed on uat,
+        e.g. Unsettled=14, Settled=28 (sum 42) vs All=45 -- either a third
+        reconciliation state existed that wasn't exposed as a filter
+        option, or the "All" count was inflated relative to the two named
+        buckets.
         """
         matches = MatchesPage(authenticated_page)
         matches.goto()
@@ -97,15 +98,18 @@ class TestFilterCalculationConsistency:
     def test_league_partitions_all(self, authenticated_page):
         """Every individual league's count should add up to "All leagues".
 
-        As of 2026-07-13 this fails on prod-test, and badly: summing all 5
-        leagues (2026 FIFA World Cup=44, Premier League=9, UEFA Champions
-        League=1, UEFA Nations League=41, UEFA Super Cup=1 -- sum 96) gives
-        more than double "All leagues" (45). Selecting almost any single
-        league returns a big chunk of the platform's historical match data
-        rather than just that league's matches -- the same "filter drops
-        the implicit status/date scope" pattern seen on the Sport filter
-        (see test_sport_filter_reset_restores_previous_count) and on the
-        Trader Dashboard's Sport filter.
+        Leagues are discovered live (MatchesPage.league_options()) rather
+        than hardcoded, since the available leagues -- and whether an
+        "Unknown league" bucket for blank-League matches exists -- drift as
+        match data rotates.
+
+        Originally filed as QA-399: on 2026-07-13 this failed badly on
+        uat -- summing all 5 leagues then (44+9+1+41+1=96) gave more
+        than double "All leagues" (45); selecting almost any single league
+        returned a big chunk of the platform's historical match data rather
+        than just that league's matches, the same "filter drops the
+        implicit status/date scope" pattern seen on the Sport filter (see
+        test_sport_filter_reset_restores_previous_count).
         """
         matches = MatchesPage(authenticated_page)
         matches.goto()
@@ -115,13 +119,9 @@ class TestFilterCalculationConsistency:
         matches.search()
         all_count = matches.total_count()
 
-        leagues = [
-            "2026 FIFA World Cup",
-            "Premier League",
-            "UEFA Champions League",
-            "UEFA Nations League",
-            "UEFA Super Cup",
-        ]
+        leagues = matches.league_options()
+        assert leagues, "expected at least one League option besides \"All leagues\""
+
         per_league_total = 0
         for league in leagues:
             matches.filter_by_league(league)
@@ -133,7 +133,7 @@ class TestFilterCalculationConsistency:
     def test_sport_filter_reset_restores_previous_count(self, authenticated_page):
         """Selecting "All sports" again after "Football" must return to the pre-filter count.
 
-        As of 2026-07-13, on prod-test the request fired after re-selecting
+        As of 2026-07-13, on uat the request fired after re-selecting
         "All sports" still carries the previously-selected `sport` query
         param (confirmed via request interception), so the result count
         stays stuck at whatever "Football" showed instead of resetting.
@@ -236,7 +236,7 @@ class TestSearchAndFilterFunctionality:
     def test_league_filter_only_shows_selected_league(self, authenticated_page):
         """Every visible row should belong to the selected league.
 
-        As of 2026-07-13 this fails on prod-test: filtering to "2026 FIFA
+        As of 2026-07-13 this fails on uat: filtering to "2026 FIFA
         World Cup" still returns at least one row with a blank League cell.
         """
         matches = MatchesPage(authenticated_page)
@@ -293,7 +293,7 @@ class TestRowLevelControls:
     def _row_with_assigned_role(matches: MatchesPage, role_name: str, max_rows: int = 20):
         """Index of the first row (up to max_rows) whose role_name already has an assignee, or None.
 
-        Assignment drifts on the shared prod-test environment (other
+        Assignment drifts on the shared uat environment (other
         QA/admin activity), so row 0 isn't reliably assigned -- scanning is
         what makes these tests reproducible.
         """

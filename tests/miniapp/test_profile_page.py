@@ -1,9 +1,10 @@
 import pytest
 
 from pages.miniapp.profile_page import ProfilePage
-from tests.miniapp.conftest import requires_miniapp_base_url
 
-pytestmark = [requires_miniapp_base_url, pytest.mark.miniapp]
+# No explicit miniapp-base-url skip needed -- authenticated_miniapp_page
+# used below already depends on it.
+pytestmark = pytest.mark.miniapp
 
 
 class TestProfilePage:

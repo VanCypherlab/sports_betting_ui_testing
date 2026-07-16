@@ -2,9 +2,10 @@ import pytest
 from playwright.sync_api import expect
 
 from pages.miniapp.main_page import MainPage
-from tests.miniapp.conftest import requires_miniapp_base_url
 
-pytestmark = [requires_miniapp_base_url, pytest.mark.miniapp]
+# No explicit miniapp-base-url skip needed -- authenticated_miniapp_page
+# used below already depends on it.
+pytestmark = pytest.mark.miniapp
 
 
 class TestMainPage:

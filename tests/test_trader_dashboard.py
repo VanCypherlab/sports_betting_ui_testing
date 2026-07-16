@@ -120,7 +120,7 @@ class TestFilterCalculationConsistency:
         whether an already-started match counts as "Today" vs "in the next 7
         days from now" is an app-defined boundary call, not something a
         black-box test should assume. But nothing can legitimately beat
-        "All" -- as of 2026-07-13 this fails on prod-test ("7 Days" returned
+        "All" -- as of 2026-07-13 this fails on uat ("7 Days" returned
         6 rows while "All" returned only 5 moments later), which points to
         "All" not actually being unrestricted, or the two requests racing
         against live-changing fixture data.
@@ -230,7 +230,7 @@ class TestSearchAndFilterFunctionality:
 
         The default table view is implicitly scoped to
         status=PRE_MATCH,IN_PLAY,PAUSED. Selecting a sport re-requests the
-        list with a `sport` param, and on prod-test that request drops the
+        list with a `sport` param, and on uat that request drops the
         status scoping entirely -- it comes back with every match ever
         played for that sport (finished ones included), so the row count
         jumps well past the baseline instead of staying the same.

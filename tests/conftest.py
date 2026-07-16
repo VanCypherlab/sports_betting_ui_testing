@@ -13,6 +13,19 @@ requires_admin_creds = pytest.mark.skipif(
 )
 
 
+def pytest_addoption(parser):
+    # Registers the ini key so `config.getini("miniapp_base_url")` works --
+    # read lazily via the `requires_miniapp_base_url`/`miniapp_page` fixtures
+    # in tests/miniapp/conftest.py (fixtures resolve at test setup time,
+    # well after pytest_configure/ini parsing complete, unlike a module-level
+    # constant in a nested conftest -- verified live).
+    parser.addini(
+        "miniapp_base_url",
+        help="Base URL for frontend-miniapp (separate origin from backoffice-ui's --base-url)",
+        default="",
+    )
+
+
 @pytest.fixture(scope="session")
 def authenticated_page(browser, base_url):
     # Session-scoped: logging in once per test function (one browser login

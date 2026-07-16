@@ -5,7 +5,7 @@ class BackofficePage:
     """Shared shape for authenticated backoffice-ui resource pages.
 
     Subclasses set URL_PATH/HEADING_TEXT and add locators only for controls
-    verified live against admin.prod-test.cypherlab.tech.
+    verified live against admin.uat.cypherlab.tech.
     """
 
     URL_PATH: str = ""

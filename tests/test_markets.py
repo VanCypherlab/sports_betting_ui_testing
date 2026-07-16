@@ -67,7 +67,7 @@ def _pick_finished_zero_wager_fixture(page):
     Dynamically discovered and validated rather than assumed -- verified
     live that some matches labeled "Finished" in the Matches list
     inconsistently show as Pre-match with blank team names on the Markets
-    page (a real prod-test data inconsistency, e.g. 01KWZCNW8YXBAXV0PKYBEGE3C4
+    page (a real uat data inconsistency, e.g. 01KWZCNW8YXBAXV0PKYBEGE3C4
     "Argentina vs Switzerland"), so candidates are validated by actually
     checking the Markets page resolves the expected team names and has at
     least one row with genuinely parseable ("0", not "—" N/A) wager/turnover
@@ -402,7 +402,7 @@ class TestInGameData:
     Uses a dynamically-discovered zero-wager Pre-match fixture (see
     `_pick_zero_wager_prematch_fixture`) rather than a hardcoded match ID,
     so every test here observes the not-started/no-live-feed-data state.
-    There is currently no In-play match on prod-test to verify what this
+    There is currently no In-play match on uat to verify what this
     card looks like with live score/clock/timeline/stats/lineup data --
     that gap should be covered separately once one is available.
     """

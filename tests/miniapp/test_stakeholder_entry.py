@@ -2,9 +2,10 @@ import pytest
 from playwright.sync_api import expect
 
 from pages.miniapp.stakeholder_entry_page import StakeholderEntryPage
-from tests.miniapp.conftest import requires_miniapp_base_url
 
-pytestmark = [requires_miniapp_base_url, pytest.mark.miniapp]
+# No explicit miniapp-base-url skip needed -- the miniapp_page fixture used
+# below (via stakeholder_entry_page) already depends on it.
+pytestmark = pytest.mark.miniapp
 
 
 @pytest.fixture

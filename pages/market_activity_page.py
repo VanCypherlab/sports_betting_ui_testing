@@ -18,7 +18,7 @@ class MarketActivityPage:
         self.heading = page.get_by_role("heading")
 
         # The "In-game data" card -- verified live against
-        # admin.prod-test.cypherlab.tech: a single bordered container
+        # admin.uat.cypherlab.tech: a single bordered container
         # holding the header (title/provider/status badge/seq), the
         # Score/Clock/Period/Teams tiles, and the Timeline/Statistics/Lineup
         # sections. Scoped by text rather than the exact class list since
