@@ -1,3 +1,5 @@
+import re
+
 from playwright.sync_api import Page, expect
 
 from pages.base_page import BackofficePage
@@ -43,6 +45,13 @@ class MarketsPage(BackofficePage):
         self.period_filter = combos.nth(1)
         self.alert_filter = combos.nth(2)
         self.hide_no_wagers_checkbox = page.get_by_role("checkbox")
+        # There are two <h1>s on this page -- the static "Markets" page
+        # heading, and the loaded match's "<home> vs <away>" title -- so
+        # this is matched positionally rather than by text (the very thing
+        # being verified may be blank/wrong -- e.g. QA-477 renders "vs"
+        # with no names on either side).
+        self.match_title = page.get_by_role("heading", level=1).nth(1)
+        self.kickoff_line = page.get_by_text(re.compile(r"^Kick off:"))
 
     def search_by_match_id(self, match_id: str):
         self.match_id_search.fill(match_id)

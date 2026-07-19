@@ -75,12 +75,25 @@ class PlayerDetailPage:
     def wager_count(self) -> int:
         """Total row count in the currently-active tab's table, from the
         "X-Y of Z" pagination label ("0 results" when empty).
+
+        This is the TRUE total across all pages, not how many rows are
+        actually rendered right now -- e.g. a player with 43 wagers still
+        only renders the first 20 in the DOM until "Load more"/next page
+        is clicked (verified live). Use `rendered_row_count()` instead
+        when iterating over rows currently in the DOM.
         """
         body_text = self.page.locator("body").inner_text()
         match = re.search(r"\d+-\d+ of (\d+)", body_text)
         if match:
             return int(match.group(1))
         return 0
+
+    def rendered_row_count(self) -> int:
+        """How many rows are actually present in the DOM right now for the
+        current tab -- may be less than `wager_count()`'s true total if
+        the table is paginated (only the current page's rows render).
+        """
+        return self.table.locator("tbody tr").count()
 
     def row_cell(self, row_index: int, col_index: int) -> str:
         return self.table.locator("tbody tr").nth(row_index).locator("td").nth(col_index).inner_text().strip()

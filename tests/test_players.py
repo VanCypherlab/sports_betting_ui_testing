@@ -85,50 +85,53 @@ def _fixture_player(base_url: str, scenario: str) -> str:
     return player_id
 
 
-def _pick_player_with_open_wager(page):
-    """Find a player with at least one Unsettled wager, via Bets -> View Player.
+def _pick_player_with_wager(page, status: str, max_attempts: int = 10):
+    """Find a player via Bets -> {status} -> View Player.
 
-    Returns a player_id, or None if no Unsettled wagers are currently available.
+    Tries up to `max_attempts` wagers (not just the first), skipping any
+    whose Player reference doesn't resolve to a real player -- some wagers'
+    "View Player" link 404s to "Player Not Found" (see QA-465), which would
+    otherwise time out downstream waiting for player-detail-page content
+    that never loads.
+
+    Returns a player_id, or None if no {status} wagers are currently
+    available, or none of the sampled ones resolve to a real player.
     """
     bets = BetsPage(page)
     bets.goto()
-    bets.filter_by_status("Unsettled")
+    bets.filter_by_status(status)
     bets.search()
-    if bets.row_count() == 0:
+    row_count = bets.row_count()
+    if row_count == 0:
         return None
 
-    wager_id = bets.row_wager_uuid(0)
-    page.goto(f"/bets/{wager_id}")
-    page.wait_for_timeout(1200)
-    view_player_button = page.get_by_role("button", name="View Player")
-    if view_player_button.count() == 0:
-        return None
-    view_player_button.click()
-    page.wait_for_timeout(1000)
-    return page.url.rsplit("/", 1)[-1]
+    # Collect wager IDs up front -- once we navigate away to a wager's
+    # detail page below, `bets`/its table no longer exist on-screen to
+    # read further rows from.
+    wager_ids = [bets.row_wager_uuid(i) for i in range(min(row_count, max_attempts))]
+
+    for wager_id in wager_ids:
+        page.goto(f"/bets/{wager_id}")
+        page.wait_for_timeout(1200)
+        view_player_button = page.get_by_role("button", name="View Player")
+        if view_player_button.count() == 0:
+            continue
+        view_player_button.click()
+        page.wait_for_timeout(1000)
+        if page.get_by_text("Player Not Found", exact=True).count():
+            continue  # QA-465: this wager's player_id doesn't resolve -- try another
+        return page.url.rsplit("/", 1)[-1]
+    return None
+
+
+def _pick_player_with_open_wager(page):
+    """Find a player with at least one Unsettled wager, via Bets -> View Player."""
+    return _pick_player_with_wager(page, "Unsettled")
 
 
 def _pick_player_with_settled_wager(page):
-    """Find a player with at least one Settled wager, via Bets -> View Player.
-
-    Returns a player_id, or None if no Settled wagers are currently available.
-    """
-    bets = BetsPage(page)
-    bets.goto()
-    bets.filter_by_status("Settled")
-    bets.search()
-    if bets.row_count() == 0:
-        return None
-
-    wager_id = bets.row_wager_uuid(0)
-    page.goto(f"/bets/{wager_id}")
-    page.wait_for_timeout(1200)
-    view_player_button = page.get_by_role("button", name="View Player")
-    if view_player_button.count() == 0:
-        return None
-    view_player_button.click()
-    page.wait_for_timeout(1000)
-    return page.url.rsplit("/", 1)[-1]
+    """Find a player with at least one Settled wager, via Bets -> View Player."""
+    return _pick_player_with_wager(page, "Settled")
 
 
 class TestPlayersPage:
@@ -498,7 +501,12 @@ class TestPlayerDetailPage:
             if None in (turnover, odds, potential_win):
                 continue
             expected = turnover * odds
-            assert abs(expected - potential_win) < 0.02, (
+            # Potential Win renders to 1 decimal place (e.g. "$56.1"), not
+            # 2 -- verified live -- so turnover*odds at full precision can
+            # legitimately be up to $0.05 off from the displayed, already-
+            # rounded value (e.g. 20 * 2.804 = 56.08, correctly displayed
+            # as "$56.1").
+            assert abs(expected - potential_win) < 0.06, (
                 f"row {r}: turnover={turnover} odds={odds} expected potential win {expected} but got {potential_win}"
             )
             checked_any = True
@@ -512,9 +520,14 @@ class TestPlayerDetailPage:
         detail = PlayerDetailPage(authenticated_page)
         detail.goto(player_id)
         detail.open_wager_history_tab()
-        row_count = detail.wager_count()
-        assert row_count, "expected this player to have wager history"
+        assert detail.wager_count(), "expected this player to have wager history"
 
+        # Iterate the rows actually rendered, not `wager_count()`'s true
+        # total -- a player with more wagers than one page (e.g. 43) only
+        # renders the first page (20) in the DOM until "Load more"/next
+        # page is clicked (verified live), so looping to the full total
+        # times out reading a row that isn't there.
+        row_count = detail.rendered_row_count()
         for r in range(row_count):
             home = detail.row_cell(r, PlayerDetailPage.COL_HOME_TEAM)
             away = detail.row_cell(r, PlayerDetailPage.COL_AWAY_TEAM)

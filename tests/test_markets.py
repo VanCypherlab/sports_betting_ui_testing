@@ -1,3 +1,5 @@
+import random
+
 import pytest
 from playwright.sync_api import expect
 
@@ -137,6 +139,31 @@ def _is_valid_finished_fixture(markets: MarketsPage, row_count: int, home: str, 
     return not has_real_wager_activity and has_parseable_row
 
 
+def _pick_prematch_match_ids_sample(page, max_sample: int = 10):
+    """A broad, unfiltered sample of Pre-match fixture IDs (any wager count,
+    any league) -- deliberately NOT narrowed to a single "known-good"
+    fixture like `_pick_finished_zero_wager_fixture`, since the point here
+    is to catch whichever matches currently have a broken Markets header
+    (see QA-477), not to avoid them.
+
+    Scoped to Pre-match rather than the page's default "Today" window/all
+    lifecycles so this doesn't also trip over the already-tracked QA-474
+    tmp:lsports placeholder matches (blank at the source, a different bug).
+    """
+    matches = MatchesPage(page)
+    matches.goto()
+    matches.filter_by_date_window("All")
+    matches.filter_by_lifecycle("Pre-match")
+    matches.search()
+
+    row_count = matches.row_count()
+    if row_count == 0:
+        return []
+
+    match_ids = [matches.manage_markets_link(i).get_attribute("href").split("matchId=", 1)[1] for i in range(row_count)]
+    return random.sample(match_ids, min(max_sample, len(match_ids)))
+
+
 class TestMarketsPage:
     def test_page_loads(self, authenticated_page):
         MarketsPage(authenticated_page).goto()
@@ -162,6 +189,42 @@ class TestMarketsPage:
         assert home in body_text
         assert away in body_text
         assert league in body_text
+
+    def test_manage_markets_header_shows_real_team_names_and_kickoff(self, authenticated_page):
+        """BUG (QA-477): when a match's `/markets` projection 404s ("market
+        projection not found"), the Markets page header collapses to a
+        blank "vs" title and an empty "Kick off:" line instead of falling
+        back to the match's own data, which is fully populated -- verified
+        live, e.g. every 2026 FIFA World Cup fixture currently reproduces
+        this on uat (Canada vs Bosnia-Herz, USA vs Paraguay, Qatar vs
+        Switzerland, ...), while ordinary league fixtures (Premier League,
+        etc.) render correctly.
+
+        Samples a broad, random set of Pre-match fixtures (see
+        `_pick_prematch_match_ids_sample`) rather than a single hardcoded
+        match ID, so this keeps working regardless of which specific
+        fixtures happen to be affected on a given day/environment. Skips
+        only if there are currently no Pre-match fixtures to sample at all.
+        """
+        match_ids = _pick_prematch_match_ids_sample(authenticated_page)
+        if not match_ids:
+            pytest.skip("no Pre-match fixtures currently available to sample")
+
+        markets = MarketsPage(authenticated_page)
+        broken = []
+        for match_id in match_ids:
+            markets.goto()
+            markets.search_by_match_id(match_id)
+            title = markets.match_title.inner_text().strip()
+            kickoff = markets.kickoff_line.inner_text().strip()
+            if title == "vs" or kickoff == "Kick off:":
+                broken.append((match_id, title, kickoff))
+
+        assert not broken, (
+            f"{len(broken)}/{len(match_ids)} sampled Pre-match fixtures show a blank team "
+            f"name and/or kickoff time in their Markets page header despite the match's own "
+            f"record having real data (see QA-477): {broken}"
+        )
 
 
 class TestFilterFunctionality:

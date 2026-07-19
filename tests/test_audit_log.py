@@ -96,9 +96,11 @@ class TestFilterFunctionality:
             if row_count == 0:
                 continue
             for i in range(row_count):
-                assert audit.row_cell(i, AuditLogPage.COL_ACTOR) == actor, (
-                    f"row {i} has Actor {audit.row_cell(i, AuditLogPage.COL_ACTOR)!r}, expected {actor!r}"
-                )
+                # The Actor cell adds a second line naming the actor's role
+                # (e.g. "Submitter") for Pending/maker-checker entries --
+                # verified live -- so compare just the actor identity itself.
+                cell_actor = audit.row_cell(i, AuditLogPage.COL_ACTOR).split("\n")[0].strip()
+                assert cell_actor == actor, f"row {i} has Actor {cell_actor!r}, expected {actor!r}"
             assert row_count <= baseline_count
             checked_any = True
         assert checked_any, "no Actor option currently has any entries to check"
@@ -235,7 +237,10 @@ class TestViewDialog:
         assert row_count, "expected at least one audit log entry"
 
         action = audit.row_cell(0, AuditLogPage.COL_ACTION)
-        actor = audit.row_cell(0, AuditLogPage.COL_ACTOR)
+        # First line only -- Pending/maker-checker entries add a second
+        # line naming the actor's role (e.g. "Submitter") that the dialog
+        # itself doesn't necessarily echo back verbatim.
+        actor = audit.row_cell(0, AuditLogPage.COL_ACTOR).split("\n")[0].strip()
 
         dialog = audit.open_view_dialog(0)
         expect(dialog.get_by_role("heading", name="Action Reason", exact=True)).to_be_visible()
@@ -247,10 +252,17 @@ class TestViewDialog:
         expect(dialog).not_to_be_visible()
 
     def test_view_dialog_change_section_reflects_row_change_column(self, authenticated_page):
-        """Every field name shown in the list's Change column for a row should
-        also appear in that row's View dialog -- the dialog just renders the
-        same before/after data field-by-field instead of the list's
-        truncated one-line summary.
+        """The first field name shown in the list's Change column for a row
+        should also appear in that row's View dialog -- the dialog just
+        renders the same before/after data field-by-field instead of the
+        list's truncated one-line summary.
+
+        Only the first key is checked (not every comma-separated segment):
+        a changed field's value can itself be a JSON blob containing commas
+        (e.g. `key: {"a":[1,2]}, otherKey: ...` -- verified live), which
+        makes splitting the full cell on "," ambiguous. The text before the
+        very first ": " is always unambiguous, regardless of what's in the
+        values.
         """
         audit = AuditLogPage(authenticated_page)
         audit.goto()
@@ -262,17 +274,15 @@ class TestViewDialog:
             change_cell = audit.row_cell(i, AuditLogPage.COL_CHANGE)
             if ":" not in change_cell:
                 continue  # blank ("-") or an override-style headline with no field-level diff to compare
-            keys = [part.split(":", 1)[0].strip() for part in change_cell.split(",")]
-            keys = [k for k in keys if k]
-            if not keys:
+            first_key = change_cell.split(":", 1)[0].strip()
+            if not first_key:
                 continue
 
             dialog = audit.open_view_dialog(i)
             dialog_text = dialog.inner_text()
-            for key in keys:
-                assert key in dialog_text, (
-                    f"row {i}: Change field {key!r} from the list is missing from the View dialog"
-                )
+            assert first_key in dialog_text, (
+                f"row {i}: Change field {first_key!r} from the list is missing from the View dialog"
+            )
             audit.close_dialog(dialog)
             checked_any = True
 

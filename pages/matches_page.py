@@ -65,6 +65,19 @@ class MatchesPage(BackofficePage):
         """
         self.league_filter.click()
         options = self.page.get_by_role("option")
+        # "All leagues" is static and appears instantly, but the real
+        # league list loads asynchronously right after -- verified live,
+        # reading options right when "All leagues" appears can still race
+        # ahead of it. Poll until the option count stops growing instead
+        # of trusting a single snapshot.
+        options.filter(has_text="All leagues").first.wait_for(state="visible", timeout=5_000)
+        previous_count = -1
+        for _ in range(10):
+            current_count = options.count()
+            if current_count == previous_count:
+                break
+            previous_count = current_count
+            self.page.wait_for_timeout(200)
         texts = [options.nth(i).inner_text().strip() for i in range(options.count())]
         self.page.keyboard.press("Escape")
         return [t for t in texts if t != "All leagues"]
@@ -158,9 +171,19 @@ class MatchesPage(BackofficePage):
         self.page.wait_for_timeout(1500)
 
     def reset_pic(self, popover):
-        """Clear a role's assignment back to unassigned via the popover's "Reset PIC" button."""
+        """Clear a role's assignment back to unassigned via the popover's "Reset PIC" button.
+
+        Same auto-close unreliability as `assign_pic` -- verified live, the
+        popover doesn't reliably close itself after Reset PIC either -- so
+        this closes it explicitly rather than asserting on the auto-close.
+        """
         popover.locator('[data-slot="pic-assign-dropdown-reset"]').click()
-        expect(popover).not_to_be_visible(timeout=5_000)
+        self.page.wait_for_timeout(500)
+        if popover.is_visible():
+            self.page.keyboard.press("Escape")
+            expect(popover).not_to_be_visible(timeout=3_000)
+        # Same eventual-consistency gap as assign_pic -- verified live,
+        # reloading immediately after can still read the pre-reset PIC.
         self.page.wait_for_timeout(1500)
 
     def market_activity_link(self, row_index: int = 0):
